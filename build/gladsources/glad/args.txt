@@ -1,1 +1,0 @@
---out-path /home/daniil/Documents/fdf/build/gladsources/glad --api gl:core=4.6 --reproducible c --loader
