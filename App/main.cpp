@@ -1,42 +1,44 @@
 #include <glad/gl.h>
-
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include "map.h"
+#include "vao.h"
+#include "Shader.h"
+#include <glm/gtc/matrix_transform.hpp>
+#include "camera.h"
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
 
-const char *vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "void main()\n"
-    "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-    "}\0";
-    
-const char *fragmentShaderSource = "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "uniform float time;\n"
-    "void main()\n"
-    "{\n"
-    "   float red = (sin(time) / 2.0) + 0.5;\n"
-    "   float green = (sin(time + 1.0) / 2.0) + 0.5;\n"
-    "   float blue = (sin(time + 2.0) / 2.0) + 0.5;\n"
-    "   FragColor = vec4(red, green, blue, 1.0);\n"
-    "}\n\0";
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
 
-void compileShader(unsigned int shader) {
-    glCompileShader(shader);
-    int success;
-    char infoLog[512];
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(shader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
 int main () {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(960, 840, "fdf", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "fdf", nullptr, nullptr);
 
     if (window == NULL)
     {
@@ -47,53 +49,65 @@ int main () {
    
     glfwMakeContextCurrent(window);
     gladLoadGL(glfwGetProcAddress);
-    float vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
-         0.0f,  0.5f, 0.0f
-    }; 
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    compileShader(vertexShader);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    compileShader(fragmentShader);
+    Map map("/home/daniil/Documents/fdf/App/res/maps/3map.txt");
+    std::vector<glm::vec3> vertices = map.GetPoints();
+    std::vector<glm::vec3> lines;
+    int width = map.GetWidth();
+    int height = map.GetHeight();
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            if (x < width - 1) {
+                lines.push_back(vertices[y * width + x]); 
+                lines.push_back(vertices[y * width + (x + 1)]);
+            }
+            if (y < height - 1) {
+                lines.push_back(vertices[y * width + x]);
+                lines.push_back(vertices[(y + 1) * width + x]); 
+            }
+        }
+    }
+    uint32_t m_vbo;
+    uint32_t m_vao;
+    glGenVertexArrays(1, &m_vao);
+    glBindVertexArray(m_vao);
 
-    // Создание шейдерной программы
-    unsigned int shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    // Удаление шейдеров, так как они уже связаны с программой
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    uint32_t vao;
-    glGenVertexArrays(1, &vao); 
-    glBindVertexArray(vao);
-    uint32_t vbo;
-    glGenBuffers(1, &vbo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glGenBuffers(1, &m_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(glm::vec3), lines.data(), GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    Shader shader("/home/daniil/Documents/fdf/App/res/shaders/basic.shader");
+    shader.Unbind();
+     glm::vec3 translation(1, 0, 0);
+     int max = map.GetMaxHeight();
     while(!glfwWindowShouldClose(window))
     {
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
+        processInput(window);
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(shaderProgram);
+        glm::mat4 proj = glm::perspective(glm::radians(camera.GetZoom()), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 view = camera.GetViewMatrix();
 
-        float timeValue = glfwGetTime();
-        int timeLocation = glGetUniformLocation(shaderProgram, "time");
-        glUniform1f(timeLocation, timeValue);
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-1.0f, 0.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f)); 
+
+        model = glm::rotate(model, glm::radians(45.0f), glm::vec3(1.0, 0.0, 0.0));   
+        shader.Bind();
+        shader.SetUniformMat4f("u_projection", proj);
+        shader.SetUniformMat4f("u_view", view);
+        shader.SetUniformMat4f("u_model", model);
+        shader.SetUniform1f("u_MaxY", max);
+        glBindVertexArray(m_vao);
+        glDrawArrays(GL_LINES, 0, lines.size());
         glfwSwapBuffers(window);
+        
         glfwPollEvents();    
     }
 }

@@ -1,3 +1,0 @@
-/home/daniil/Documents/fdf/build/_deps/glfw3-subbuild/CMakeFiles/glfw3-populate.dir
-/home/daniil/Documents/fdf/build/_deps/glfw3-subbuild/CMakeFiles/edit_cache.dir
-/home/daniil/Documents/fdf/build/_deps/glfw3-subbuild/CMakeFiles/rebuild_cache.dir
